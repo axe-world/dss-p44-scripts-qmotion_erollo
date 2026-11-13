@@ -1,0 +1,60 @@
+on (message()) as m { 
+  if (m.id == 'shadePositionOutside') {
+    var qmotion_ip = '192.168.1.1'   //ANPASSEN !!!
+    var qmotion_port = 9760
+    var qmotion_shadechannel = 9  // ANPASSEN!! Kanal findet man in der qmotion mobile app pro Rollo
+    var qmotion_dummyshadechannel = 12  // erforderlich wegen bug in qmotion qsync Gerät wenn man mehrere Rollos nacheinander ansteuert.  Muss einfach ein "leerer" channel sein ohne Rollos
+
+    log('vdc->device message: %s', m) 
+
+    var sock = tcpsocket(qmotion_ip, qmotion_port)
+
+    try {
+      sock.connect()
+  
+      var qsync_dummy_command = binary('1b-05-00-00-00', false)
+      qsync_dummy_command += chr(qmotion_dummyshadechannel)
+          
+      var qsync_command = binary('1b-05-00-00-00', false)
+      qsync_command += chr(qmotion_shadechannel)
+      
+      var qmotion_shadepos = 0
+      //calculate (round) to nearest multiple of 12.5 as qmotion shades only support steps of 12.5%
+      //100 means fully open,  0 means fully closed
+      var new_pos_modulo = m.value % 12.5
+      if (new_pos_modulo >= 6.25) qmotion_shadepos = m.value - new_pos_modulo + 12.5
+        else qmotion_shadepos = m.value - new_pos_modulo
+                
+      log('rounded new shadepos: %s', qmotion_shadepos)  
+      
+      if (qmotion_shadepos == 100) {
+        qsync_command += chr(1)
+        qsync_dummy_command += chr(2)
+      } else if (qmotion_shadepos == 0) {
+        qsync_command += chr(2)
+        qsync_dummy_command += chr(1)
+      } else {
+        qsync_dummy_command += chr(21)
+        if (qmotion_shadepos == 87.5) qsync_command += chr(6)
+          else if (qmotion_shadepos == 75) qsync_command += chr(7)
+          else if (qmotion_shadepos == 62.5) qsync_command += chr(8)
+          else if (qmotion_shadepos == 50) qsync_command += chr(10)
+          else if (qmotion_shadepos == 37.5) qsync_command += chr(11)
+          else if (qmotion_shadepos == 25) qsync_command += chr(12)
+          else if (qmotion_shadepos == 12.5) qsync_command += chr(14)
+      }
+              
+      log('send qmotion dummy command: %s', hex(qsync_dummy_command))
+      var sent = sock.send(qsync_dummy_command)
+
+      log('send qmotion command: %s', hex(qsync_command))
+      var sent = sock.send(qsync_command)
+            
+      sock.disconnect()
+    } catch as err {
+      log("network: socket error: %s", err)
+    }
+  }
+}
+
+return true

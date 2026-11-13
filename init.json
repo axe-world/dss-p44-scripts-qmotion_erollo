@@ -1,0 +1,9 @@
+{
+  'message':'init',
+  'output':'shadow',
+  'colorclass':2,
+  'group':2,
+  'kind':'roller',
+  'name':'Innenrollo Bad',
+  'modelname':'qmotion qsync'
+}
